@@ -144,7 +144,7 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             await update.message.reply_text("Minimum is 100 Stars. Enter a valid number:")
             return ADD_STARS_STATE
 
-        # رابط Stars Payment داخل Telegram
+        # زر Stars Payment داخل Telegram
         bot_username = context.bot.username
         pay_url = f"https://t.me/{bot_username}?startattach=pay&amount={stars_amount}&currency=XTR"
 
@@ -156,7 +156,6 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             reply_markup=reply_markup
         )
         return ConversationHandler.END
-
     except ValueError:
         await update.message.reply_text("Invalid input. Enter a number:")
         return ADD_STARS_STATE
