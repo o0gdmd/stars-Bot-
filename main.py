@@ -1,6 +1,7 @@
 import logging
 import os
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup,
     KeyboardButton, ReplyKeyboardMarkup, LabeledPrice
@@ -17,43 +18,50 @@ logging.basicConfig(
 )
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 # States
 ADD_STARS_STATE, WITHDRAW_AMOUNT_STATE, SET_WALLET_STATE = range(3)
 
 # --- Database functions ---
+def get_connection():
+    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+
 def init_db():
-    conn = sqlite3.connect("bot_data.db")
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            balance INTEGER DEFAULT 0,
+            user_id BIGINT PRIMARY KEY,
+            balance BIGINT DEFAULT 0,
             ton_wallet TEXT,
-            total_deposits INTEGER DEFAULT 0
+            total_deposits BIGINT DEFAULT 0
         )
     """)
     conn.commit()
+    cursor.close()
     conn.close()
 
 def get_user_data(user_id):
-    conn = sqlite3.connect("bot_data.db")
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
     data = cursor.fetchone()
     if not data:
-        cursor.execute("INSERT INTO users (user_id) VALUES (?)", (user_id,))
+        cursor.execute("INSERT INTO users (user_id) VALUES (%s)", (user_id,))
         conn.commit()
-        data = (user_id, 0, None, 0)
+        data = {"user_id": user_id, "balance": 0, "ton_wallet": None, "total_deposits": 0}
+    cursor.close()
     conn.close()
-    return {"user_id": data[0], "balance": data[1], "ton_wallet": data[2], "total_deposits": data[3]}
+    return data
 
 def update_user_data(user_id, **kwargs):
-    conn = sqlite3.connect("bot_data.db")
+    conn = get_connection()
     cursor = conn.cursor()
     for key, value in kwargs.items():
-        cursor.execute(f"UPDATE users SET {key} = ? WHERE user_id = ?", (value, user_id))
+        cursor.execute(f"UPDATE users SET {key} = %s WHERE user_id = %s", (value, user_id))
     conn.commit()
+    cursor.close()
     conn.close()
 
 # --- VIP System ---
@@ -143,14 +151,13 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             await update.message.reply_text("Minimum is 100 Stars. Enter a valid number:")
             return ADD_STARS_STATE
 
-        # ارسال الفاتورة الرسمية داخل Telegram
         prices = [LabeledPrice("Stars", stars_amount)]
         await context.bot.send_invoice(
             chat_id=update.effective_chat.id,
             title="Buy Stars",
             description=f"Adding {stars_amount} Stars to your balance",
             payload=str(stars_amount),
-            provider_token="",  # مطلوب للـ Stars
+            provider_token="",
             currency="XTR",
             prices=prices
         )
@@ -256,7 +263,6 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     update_user_data(user_id, ton_wallet=new_wallet)
 
-    # تحقق إذا كان المستخدم يقوم بالتعديل وليس الإضافة لأول مرة
     if context.user_data.get("editing_wallet"):
         await update.message.reply_text(
             f"✅ Your TON wallet has been updated successfully!\nCurrent wallet: `{new_wallet}`",
