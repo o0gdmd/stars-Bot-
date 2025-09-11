@@ -11,11 +11,12 @@ from telegram.ext import (
     MessageHandler,
     CallbackQueryHandler,
     ConversationHandler,
+    PreCheckoutQueryHandler,
     ContextTypes,
     filters,
 )
 
-# إعداد السجل (Logging)
+# إعداد السجل
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -103,14 +104,14 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             return ADD_STARS_STATE
 
         # إرسال الفاتورة الرسمية للنجوم
-        prices = [LabeledPrice("Stars", stars_amount * 100)]  # القيمة بالـ "cents"
+        prices = [LabeledPrice("Stars", stars_amount)]  # القيمة = عدد النجوم مباشرة
         await context.bot.send_invoice(
             chat_id=update.effective_chat.id,
             title="Buy Stars",
             description=f"Adding {stars_amount} Stars to your balance",
-            payload="add-stars",
-            provider_token="",   # مش مطلوب للـ Stars
-            currency="XTR",      # XTR هي عملة Telegram Stars
+            payload=str(stars_amount),   # نخزن المبلغ بالـ payload
+            provider_token="",           # مش مطلوب للـ Stars
+            currency="XTR",              # XTR = Telegram Stars
             prices=prices
         )
         return ConversationHandler.END
@@ -118,6 +119,29 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     except ValueError:
         await update.message.reply_text("Invalid input. Please enter a number:")
         return ADD_STARS_STATE
+
+# --- Payment Handlers ---
+async def precheckout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """لازم الموافقة على الدفع قبل ما يتم"""
+    query = update.pre_checkout_query
+    await query.answer(ok=True)
+
+async def successful_payment_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """لما ينجح الدفع"""
+    payment = update.message.successful_payment
+    user_id = update.effective_user.id
+    stars_amount = int(payment.total_amount)  # عدد النجوم المدفوعة
+
+    user_info = get_user_data(user_id)
+    new_balance = user_info['balance'] + stars_amount
+    update_user_data(user_id, balance=new_balance)
+
+    await update.message.reply_text(
+        f"✅ Payment successful!\n"
+        f"Added {stars_amount} Stars to your balance.\n"
+        f"Current balance: {new_balance} Stars."
+    )
+    logging.info(f"User {user_id} paid {stars_amount} Stars. New balance: {new_balance}")
 
 # --- Withdraw ---
 async def withdraw_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -171,7 +195,7 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.message.reply_text(f"Your new TON wallet has been saved: `{new_wallet}`", parse_mode='Markdown')
     return ConversationHandler.END
 
-# --- Star Transactions ---
+# --- Star Transactions (optional fallback) ---
 async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.star_transaction:
         star_transaction = update.star_transaction
@@ -218,6 +242,12 @@ def main() -> None:
     application.add_handler(wallet_conv_handler)
     application.add_handler(MessageHandler(filters.Regex("^🏧 Withdraw$"), withdraw_handler))
     application.add_handler(CallbackQueryHandler(confirm_withdrawal, pattern="^confirm_withdraw$"))
+
+    # Handlers الدفع
+    application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
+    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
+
+    # fallback للـ Stars transactions
     application.add_handler(MessageHandler(filters.ALL, star_transaction_handler))
 
     PORT = int(os.environ.get('PORT', 8080))
