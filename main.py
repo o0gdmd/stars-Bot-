@@ -143,6 +143,7 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             await update.message.reply_text("Minimum is 100 Stars. Enter a valid number:")
             return ADD_STARS_STATE
 
+        # ارسال الفاتورة الرسمية داخل Telegram
         prices = [LabeledPrice("Stars", stars_amount)]
         await context.bot.send_invoice(
             chat_id=update.effective_chat.id,
@@ -235,38 +236,15 @@ async def confirm_withdrawal(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"Your TON will be sent soon."
     )
 
-# --- Wallet (New System with Edit Confirmation) ---
+# --- Wallet ---
 async def wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user_id = update.effective_user.id
-    user_info = get_user_data(user_id)
-    current_wallet = user_info["ton_wallet"]
-
-    if current_wallet:
-        keyboard = [
-            [InlineKeyboardButton("✏️ Edit Wallet", callback_data="edit_wallet")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(
-            f"Your current TON wallet: `{current_wallet}`",
-            parse_mode="Markdown",
-            reply_markup=reply_markup
-        )
-        return ConversationHandler.END
-    else:
-        await update.message.reply_text(
-            "You don't have a TON wallet set yet.\nPlease send me your TON wallet address:"
-        )
-        return SET_WALLET_STATE
-
-async def handle_wallet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if query.data == "edit_wallet":
-        await query.message.reply_text(
-            "Send me your new TON wallet address:"
-        )
-        context.user_data["editing_wallet"] = True
-        return SET_WALLET_STATE
+    user_info = get_user_data(update.effective_user.id)
+    current_wallet = user_info["ton_wallet"] if user_info["ton_wallet"] else "Not set"
+    await update.message.reply_text(
+        f"Your current TON wallet: `{current_wallet}`\nSend me your new TON wallet address or type the same to keep it:",
+        parse_mode="Markdown"
+    )
+    return SET_WALLET_STATE
 
 async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
@@ -295,7 +273,7 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 # --- Star Transactions fallback ---
 async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if hasattr(update, "star_transaction") and update.star_transaction:
+    if getattr(update, "star_transaction", None):
         star_transaction = update.star_transaction
         user_id = star_transaction.payer.id
         amount = star_transaction.amount
@@ -340,7 +318,6 @@ def main():
     application.add_handler(withdraw_conv)
     application.add_handler(wallet_conv)
     application.add_handler(CallbackQueryHandler(confirm_withdrawal, pattern="^confirm_withdraw$"))
-    application.add_handler(CallbackQueryHandler(handle_wallet_callback, pattern="^edit_wallet$"))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
     application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     application.add_handler(MessageHandler(filters.ALL, star_transaction_handler))
