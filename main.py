@@ -108,7 +108,11 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             await update.message.reply_text("The minimum amount is 100 stars. Please enter a valid number:")
             return ADD_STARS_STATE
             
-        pay_url = f"https://t.me/stars?startApp=Tgstarssavebot&amount={stars_amount}"
+        # === هنا تم تعديل الكود لضمان استخدام اسم المستخدم الصحيح ===
+        bot_username = context.bot.username
+        pay_url = f"https://t.me/stars?startApp={bot_username}&amount={stars_amount}"
+        # =======================================================
+        
         keyboard = [[InlineKeyboardButton(f"Pay {stars_amount} Stars", url=pay_url)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -188,7 +192,6 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 # --- Handler لاستقبال النجوم ---
 async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """معالجة المعاملات الواردة من النجوم."""
-    # التحقق المباشر من وجود كائن star_transaction
     if update.star_transaction:
         star_transaction = update.star_transaction
         user_id = star_transaction.payer.id
@@ -237,7 +240,6 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.Regex("^🏧 Withdraw$"), withdraw_handler))
     application.add_handler(CallbackQueryHandler(confirm_withdrawal, pattern="^confirm_withdraw$"))
     
-    # === الخط الجديد والمُعدل ===
     application.add_handler(MessageHandler(filters.ALL, star_transaction_handler))
 
     PORT = int(os.environ.get('PORT', 8080))
