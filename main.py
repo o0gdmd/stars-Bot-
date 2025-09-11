@@ -110,6 +110,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [KeyboardButton("👤 Account"), KeyboardButton("👛 Wallet")]
     ]
     reply_markup = ReplyKeyboardMarkup(menu_keyboard, resize_keyboard=True)
+
     await update.message.reply_text("Welcome! Choose an option:", reply_markup=reply_markup)
 
 async def account_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -235,12 +236,15 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return SET_WALLET_STATE
 
     update_user_data(user_id, ton_wallet=new_wallet)
-    await update.message.reply_text(f"✅ Your new TON wallet has been saved:\n`{new_wallet}`", parse_mode="Markdown")
+    await update.message.reply_text(
+        f"✅ Your TON wallet has been updated!\nCurrent wallet: `{new_wallet}`",
+        parse_mode="Markdown"
+    )
     return ConversationHandler.END
 
 # --- Handle Stars Payment ---
 async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if hasattr(update, "star_transaction") and update.star_transaction:
+    if update.star_transaction:
         star_transaction = update.star_transaction
         user_id = star_transaction.payer.id
         amount = star_transaction.amount
@@ -255,14 +259,12 @@ async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT
                 chat_id=user_id,
                 text=f"✅ Payment received: {amount} Stars\nYour new balance: {new_balance} Stars"
             )
-            logging.info(f"Received {amount} Stars from {user_id}. New balance: {new_balance}")
 
 # --- Main ---
 def main():
     init_db()
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # Conversation Handlers
     add_fund_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^➕ Add Funds$"), add_fund_start)],
         states={ADD_STARS_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_stars_amount)]},
@@ -281,7 +283,6 @@ def main():
         fallbacks=[CommandHandler("cancel", start)],
     )
 
-    # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.Regex("^👤 Account$"), account_handler))
     application.add_handler(add_fund_conv)
@@ -290,7 +291,6 @@ def main():
     application.add_handler(CallbackQueryHandler(confirm_withdrawal, pattern="^confirm_withdraw$"))
     application.add_handler(MessageHandler(filters.ALL, star_transaction_handler))
 
-    # Webhook settings (Render)
     PORT = int(os.environ.get("PORT", 8080))
     URL = os.environ.get("RENDER_EXTERNAL_URL", "https://your-render-app-name.onrender.com")
 
