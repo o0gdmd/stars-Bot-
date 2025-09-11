@@ -235,7 +235,8 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.Regex("^🏧 Withdraw$"), withdraw_handler))
     application.add_handler(CallbackQueryHandler(confirm_withdrawal, pattern="^confirm_withdraw$"))
     
-    application.add_handler(MessageHandler(filters.STAR_TRANSACTION, star_transaction_handler))
+    # === الخط الجديد والمُعدل ===
+    application.add_handler(MessageHandler(filters.UpdateType.STAR_TRANSACTION, star_transaction_handler))
 
     PORT = int(os.environ.get('PORT', 8080))
     URL = os.environ.get("RENDER_EXTERNAL_URL", "https://your-render-app-name.onrender.com")
