@@ -235,7 +235,7 @@ async def confirm_withdrawal(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"Your TON will be sent soon."
     )
 
-# --- Wallet (New System) ---
+# --- Wallet (New System with Edit Confirmation) ---
 async def wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
     user_info = get_user_data(user_id)
@@ -277,7 +277,7 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     update_user_data(user_id, ton_wallet=new_wallet)
     await update.message.reply_text(
-        f"✅ Your TON wallet has been updated!\nCurrent wallet: `{new_wallet}`",
+        f"✅ Your TON wallet has been updated successfully!\nCurrent wallet: `{new_wallet}`",
         parse_mode="Markdown"
     )
     return ConversationHandler.END
