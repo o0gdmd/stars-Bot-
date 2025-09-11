@@ -247,6 +247,10 @@ async def confirm_withdrawal(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_info = get_user_data(update.effective_user.id)
     current_wallet = user_info["ton_wallet"] if user_info["ton_wallet"] else "Not set"
+
+    # ✅ تحديد إذا المستخدم بيعدل العنوان أو يضيف لأول مرة
+    context.user_data["editing_wallet"] = bool(user_info["ton_wallet"])
+
     await update.message.reply_text(
         f"Your current TON wallet: `{current_wallet}`\nSend me your new TON wallet address or type the same to keep it:",
         parse_mode="Markdown"
@@ -255,9 +259,19 @@ async def wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
-    new_wallet = update.message.text
+    new_wallet = update.message.text.strip()  # إزالة الفراغات الزائدة
 
-    if not (new_wallet.startswith(("EQ", "UQ")) or new_wallet.endswith((".ton",))):
+    # السماح بنفس العنوان الحالي بدون ظهور رسالة خطأ
+    current_wallet = get_user_data(user_id)["ton_wallet"]
+    if current_wallet and new_wallet == current_wallet:
+        await update.message.reply_text(
+            f"✅ Your TON wallet remains the same: `{new_wallet}`",
+            parse_mode="Markdown"
+        )
+        return ConversationHandler.END
+
+    # التحقق من صحة عنوان TON إذا تم تغييره
+    if not (new_wallet.startswith(("EQ", "UQ")) or new_wallet.endswith(".ton")):
         await update.message.reply_text("Invalid TON wallet address. Try again:")
         return SET_WALLET_STATE
 
