@@ -265,6 +265,7 @@ async def handle_wallet_callback(update: Update, context: ContextTypes.DEFAULT_T
         await query.message.reply_text(
             "Send me your new TON wallet address:"
         )
+        context.user_data["editing_wallet"] = True
         return SET_WALLET_STATE
 
 async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -276,10 +277,20 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return SET_WALLET_STATE
 
     update_user_data(user_id, ton_wallet=new_wallet)
-    await update.message.reply_text(
-        f"✅ Your TON wallet has been updated successfully!\nCurrent wallet: `{new_wallet}`",
-        parse_mode="Markdown"
-    )
+
+    # تحقق إذا كان المستخدم يقوم بالتعديل وليس الإضافة لأول مرة
+    if context.user_data.get("editing_wallet"):
+        await update.message.reply_text(
+            f"✅ Your TON wallet has been updated successfully!\nCurrent wallet: `{new_wallet}`",
+            parse_mode="Markdown"
+        )
+        context.user_data["editing_wallet"] = False
+    else:
+        await update.message.reply_text(
+            f"✅ Your TON wallet has been added!\nCurrent wallet: `{new_wallet}`",
+            parse_mode="Markdown"
+        )
+
     return ConversationHandler.END
 
 # --- Star Transactions fallback ---
