@@ -108,7 +108,7 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             await update.message.reply_text("The minimum amount is 100 stars. Please enter a valid number:")
             return ADD_STARS_STATE
             
-        pay_url = f"https://t.me/stars?startApp=stars_bot&amount={stars_amount}"
+        pay_url = f"https://t.me/stars?startApp=Tgstarssavebot&amount={stars_amount}"
         keyboard = [[InlineKeyboardButton(f"Pay {stars_amount} Stars", url=pay_url)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
