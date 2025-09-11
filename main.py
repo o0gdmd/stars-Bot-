@@ -1,7 +1,10 @@
 import logging
 import os
 import sqlite3
-from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from telegram import (
+    Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup,
+    KeyboardButton, ReplyKeyboardMarkup, LabeledPrice
+)
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -12,21 +15,19 @@ from telegram.ext import (
     filters,
 )
 
-# إعداد السجل (Logging) للمساعدة في تتبع الأخطاء
+# إعداد السجل (Logging)
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-# ضع توكن البوت الخاص بك هنا (يفضل استخدامه كمتغير بيئة)
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 
 # حالات المحادثة
 ADD_STARS_STATE, SET_WALLET_STATE = range(2)
 
-# --- الدوال الخاصة بقاعدة البيانات (SQLite) ---
+# --- قاعدة البيانات ---
 def init_db():
-    """تهيئة قاعدة البيانات وإنشاء جدول المستخدمين."""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute('''
@@ -40,7 +41,6 @@ def init_db():
     conn.close()
 
 def get_user_data(user_id):
-    """جلب بيانات المستخدم من قاعدة البيانات أو إنشاء حساب جديد."""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
@@ -53,7 +53,6 @@ def get_user_data(user_id):
     return {'user_id': data[0], 'balance': data[1], 'ton_wallet': data[2]}
 
 def update_user_data(user_id, **kwargs):
-    """تحديث بيانات المستخدم في قاعدة البيانات."""
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     for key, value in kwargs.items():
@@ -61,10 +60,9 @@ def update_user_data(user_id, **kwargs):
     conn.commit()
     conn.close()
 
-# --- Handlers للأوامر الأساسية ---
+# --- Handlers ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """الرد على أمر /start وإظهار قائمة الأزرار."""
     user_id = update.effective_user.id
     get_user_data(user_id)
     
@@ -79,7 +77,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 async def account_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """عرض تفاصيل الحساب."""
     user = update.effective_user
     user_info = get_user_data(user.id)
     
@@ -93,45 +90,37 @@ async def account_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
     await update.message.reply_text(response_text)
 
-# --- Handlers لعملية Add Fund ---
-
+# --- Add Fund ---
 async def add_fund_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """يبدأ عملية إضافة النجوم ويطلب المبلغ."""
-    await update.message.reply_text("How many Stars do you want to add? (min: 100,):")
+    await update.message.reply_text("How many Stars do you want to add? (min: 100):")
     return ADD_STARS_STATE
 
 async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """يتلقى المبلغ ويتحقق منه."""
     try:
         stars_amount = int(update.message.text)
         if stars_amount < 100:
             await update.message.reply_text("The minimum amount is 100 stars. Please enter a valid number:")
             return ADD_STARS_STATE
-            
-        # === الكود الصحيح والمضمون ===
-        # الحصول على اسم المستخدم الخاص بالبوت بشكل تلقائي
-        bot_username = context.bot.username
-        # بناء الرابط بشكل صحيح
-        pay_url = f"https://t.me/stars?startApp={bot_username}&amount={stars_amount}"
-        # =============================
-        
-        keyboard = [[InlineKeyboardButton(f"Pay {stars_amount} Stars", url=pay_url)]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
 
-        await update.message.reply_text(
-            f"Please click the button to pay {stars_amount} Stars directly to the bot:",
-            reply_markup=reply_markup
+        # إرسال الفاتورة الرسمية للنجوم
+        prices = [LabeledPrice("Stars", stars_amount * 100)]  # القيمة بالـ "cents"
+        await context.bot.send_invoice(
+            chat_id=update.effective_chat.id,
+            title="Buy Stars",
+            description=f"Adding {stars_amount} Stars to your balance",
+            payload="add-stars",
+            provider_token="",   # مش مطلوب للـ Stars
+            currency="XTR",      # XTR هي عملة Telegram Stars
+            prices=prices
         )
         return ConversationHandler.END
-        
+
     except ValueError:
         await update.message.reply_text("Invalid input. Please enter a number:")
         return ADD_STARS_STATE
 
-# --- Handlers لعملية Withdraw ---
-
+# --- Withdraw ---
 async def withdraw_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """يتحقق من الرصيد ويعرض خيار السحب."""
     user_info = get_user_data(update.effective_user.id)
     
     if user_info['balance'] < 100:
@@ -147,10 +136,8 @@ async def withdraw_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_text(response_text, reply_markup=reply_markup)
-    return
 
 async def confirm_withdrawal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """يتعامل مع تأكيد السحب."""
     query = update.callback_query
     await query.answer()
     
@@ -161,17 +148,11 @@ async def confirm_withdrawal(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.edit_message_text("Error: Please set your TON Wallet address first using the 'Wallet' button.")
         return
         
-    # هنا يتم استدعاء دالة تحويل النجوم إلى TON
-    # await send_ton(user_info['ton_wallet'], user_info['balance'])
-    
     await query.edit_message_text("Your withdrawal request has been submitted successfully. The TON will be sent to your wallet shortly.")
-    
     update_user_data(user_id, balance=0)
 
-# --- Handlers لعملية Wallet ---
-
+# --- Wallet ---
 async def wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """يعرض المحفظة الحالية ويطلب عنوان جديد."""
     user_info = get_user_data(update.effective_user.id)
     
     current_wallet = user_info['ton_wallet'] if user_info['ton_wallet'] else "Not set"
@@ -179,7 +160,6 @@ async def wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return SET_WALLET_STATE
 
 async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """يتلقى عنوان المحفظة ويحفظه."""
     user_id = update.effective_user.id
     new_wallet = update.message.text
     
@@ -191,9 +171,8 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.message.reply_text(f"Your new TON wallet has been saved: `{new_wallet}`", parse_mode='Markdown')
     return ConversationHandler.END
 
-# --- Handler لاستقبال النجوم ---
+# --- Star Transactions ---
 async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """معالجة المعاملات الواردة من النجوم."""
     if update.star_transaction:
         star_transaction = update.star_transaction
         user_id = star_transaction.payer.id
@@ -212,10 +191,9 @@ async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT
             )
             logging.info(f"Received {amount} stars from user {user_id}. New balance: {new_balance}")
 
-
+# --- Main ---
 def main() -> None:
-    """وظيفة تشغيل البوت."""
-    init_db()  # تهيئة قاعدة البيانات عند بدء التشغيل
+    init_db()
     application = Application.builder().token(BOT_TOKEN).build()
 
     add_fund_conv_handler = ConversationHandler(
@@ -238,10 +216,8 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.Regex("^👤 Account$"), account_handler))
     application.add_handler(add_fund_conv_handler)
     application.add_handler(wallet_conv_handler)
-    
     application.add_handler(MessageHandler(filters.Regex("^🏧 Withdraw$"), withdraw_handler))
     application.add_handler(CallbackQueryHandler(confirm_withdrawal, pattern="^confirm_withdraw$"))
-    
     application.add_handler(MessageHandler(filters.ALL, star_transaction_handler))
 
     PORT = int(os.environ.get('PORT', 8080))
