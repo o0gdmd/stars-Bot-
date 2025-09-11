@@ -188,22 +188,24 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 # --- Handler لاستقبال النجوم ---
 async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """معالجة المعاملات الواردة من النجوم."""
-    star_transaction = update.star_transaction
-    user_id = star_transaction.payer.id
-    amount = star_transaction.amount
+    # التحقق المباشر من وجود كائن star_transaction
+    if update.star_transaction:
+        star_transaction = update.star_transaction
+        user_id = star_transaction.payer.id
+        amount = star_transaction.amount
 
-    if star_transaction.type == 'StarsPayment':
-        user_info = get_user_data(user_id)
-        current_balance = user_info['balance']
-        new_balance = current_balance + amount
-        
-        update_user_data(user_id, balance=new_balance)
-        
-        await context.bot.send_message(
-            chat_id=user_id,
-            text=f"تم استلام دفعة {amount} نجمة بنجاح!\nرصيدك الحالي هو: {new_balance} نجمة."
-        )
-        logging.info(f"Received {amount} stars from user {user_id}. New balance: {new_balance}")
+        if star_transaction.type == 'StarsPayment':
+            user_info = get_user_data(user_id)
+            current_balance = user_info['balance']
+            new_balance = current_balance + amount
+            
+            update_user_data(user_id, balance=new_balance)
+            
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=f"تم استلام دفعة {amount} نجمة بنجاح!\nرصيدك الحالي هو: {new_balance} نجمة."
+            )
+            logging.info(f"Received {amount} stars from user {user_id}. New balance: {new_balance}")
 
 
 def main() -> None:
@@ -236,7 +238,7 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(confirm_withdrawal, pattern="^confirm_withdraw$"))
     
     # === الخط الجديد والمُعدل ===
-    application.add_handler(MessageHandler(filters.UpdateType.STAR_TRANSACTION, star_transaction_handler))
+    application.add_handler(MessageHandler(filters.ALL, star_transaction_handler))
 
     PORT = int(os.environ.get('PORT', 8080))
     URL = os.environ.get("RENDER_EXTERNAL_URL", "https://your-render-app-name.onrender.com")
