@@ -146,7 +146,8 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             prices=prices
         )
 
-        # تبقى الحالة مفتوحة بعد إرسال الفاتورة حتى يضغط Cancel
+        # **كيبورد Cancel يظهر تلقائي بعد إصدار الفاتورة**
+        await update.message.reply_text("❌ Cancel", reply_markup=cancel_keyboard())
         return ADD_STARS_STATE
     except ValueError:
         await update.message.reply_text("Invalid input. Enter a number:",
@@ -231,7 +232,8 @@ async def confirm_withdrawal(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"Remaining balance: {new_balance} Stars.\n"
         f"Your TON will be sent soon."
     )
-    await query.message.reply_text("Choose an option:", reply_markup=main_menu_keyboard())
+    # بعد التأكيد، إظهار الأزرار الأربعة
+    await query.message.reply_text("Please choose an option from below:", reply_markup=main_menu_keyboard())
 
 # --- Wallet ---
 async def wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -257,7 +259,12 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return SET_WALLET_STATE
 
     update_user_data(user_id, ton_wallet=new_wallet)
-    await update_user_data(user_id, ton_wallet=new_wallet)
+    # رسالة تأكيد تحديث المحفظة
+    await update.message.reply_text(
+        f"✅ Your TON wallet has been updated successfully!\nCurrent wallet: `{new_wallet}`",
+        parse_mode="Markdown"
+    )
+    # بعد الرسالة، إظهار الأزرار الأربعة
     await start(update, context)
     return ConversationHandler.END
 
