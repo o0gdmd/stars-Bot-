@@ -79,6 +79,11 @@ def get_vip_level(total_deposits):
     else:
         return "VIP 0"
 
+# --- Cancel Keyboard Helper ---
+def cancel_keyboard():
+    """Keyboard with Cancel button."""
+    return ReplyKeyboardMarkup([[KeyboardButton("❌ Cancel")]], resize_keyboard=True)
+
 # --- Start Handler ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start message with main menu buttons only."""
@@ -96,11 +101,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Please choose an option from below:", 
         reply_markup=reply_markup
     )
-
-# --- Cancel Keyboard ---
-def cancel_keyboard():
-    """Returns a keyboard with only Cancel button."""
-    return ReplyKeyboardMarkup([[KeyboardButton("❌ Cancel")]], resize_keyboard=True)
 
 # --- Account ---
 async def account_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -122,18 +122,24 @@ async def account_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(response_text)
 
-# --- Add Funds with Telegram Stars (No Cancel) ---
+# --- Add Funds with Cancel ---
 async def add_fund_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
-        "Enter the number of Stars you want to add (min: 100):"
+        "Enter the number of Stars you want to add (min: 100):",
+        reply_markup=cancel_keyboard()
     )
     return ADD_STARS_STATE
 
 async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.message.text == "❌ Cancel":
+        await start(update, context)
+        return ConversationHandler.END
+
     try:
         stars_amount = int(update.message.text)
         if stars_amount < 100:
-            await update.message.reply_text("Minimum is 100 Stars. Enter a valid number:")
+            await update.message.reply_text("Minimum is 100 Stars. Enter a valid number:",
+                                            reply_markup=cancel_keyboard())
             return ADD_STARS_STATE
 
         prices = [LabeledPrice("Stars", stars_amount)]
@@ -148,7 +154,8 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         return ConversationHandler.END
     except ValueError:
-        await update.message.reply_text("Invalid input. Enter a number:")
+        await update.message.reply_text("Invalid input. Enter a number:",
+                                        reply_markup=cancel_keyboard())
         return ADD_STARS_STATE
 
 # --- PreCheckout & Successful Payment Handlers ---
@@ -244,21 +251,26 @@ async def wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     current_wallet = user_info["ton_wallet"] if user_info["ton_wallet"] else "Not set"
     await update.message.reply_text(
         f"Your current TON wallet: `{current_wallet}`\nSend me your new TON wallet address:",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=cancel_keyboard()
     )
     return SET_WALLET_STATE
 
 async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.message.text == "❌ Cancel":
+        await start(update, context)
+        return ConversationHandler.END
+
     user_id = update.message.from_user.id
     new_wallet = update.message.text
 
     if not (new_wallet.startswith(("EQ", "UQ")) or new_wallet.endswith((".ton",))):
-        await update.message.reply_text("Invalid TON wallet address. Try again:")
+        await update.message.reply_text("Invalid TON wallet address. Try again:",
+                                        reply_markup=cancel_keyboard())
         return SET_WALLET_STATE
 
     update_user_data(user_id, ton_wallet=new_wallet)
 
-    # رسالة التأكيد ثم العودة تلقائيًا للأزرار الرئيسية
     await update.message.reply_text(
         f"✅ Your TON wallet has been updated successfully!\nCurrent wallet: `{new_wallet}`",
         parse_mode="Markdown"
@@ -284,11 +296,6 @@ async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT
                 text=f"✅ Payment received: {amount} Stars\nYour new balance: {new_balance} Stars"
             )
 
-# --- Handle Cancel ---
-async def handle_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await start(update, context)
-    return ConversationHandler.END
-
 # --- Main ---
 def main():
     init_db()
@@ -297,19 +304,19 @@ def main():
     add_fund_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^➕ Add Funds$"), add_fund_start)],
         states={ADD_STARS_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_stars_amount)]},
-        fallbacks=[],
+        fallbacks=[MessageHandler(filters.Regex("^❌ Cancel$"), start)],
     )
 
     withdraw_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^🏧 Withdraw$"), withdraw_handler)],
         states={WITHDRAW_AMOUNT_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_withdraw_amount)]},
-        fallbacks=[MessageHandler(filters.Regex("^❌ Cancel$"), handle_cancel)],
+        fallbacks=[MessageHandler(filters.Regex("^❌ Cancel$"), start)],
     )
 
     wallet_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^👛 Wallet$"), wallet_start)],
         states={SET_WALLET_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_ton_wallet)]},
-        fallbacks=[],
+        fallbacks=[MessageHandler(filters.Regex("^❌ Cancel$"), start)],
     )
 
     application.add_handler(CommandHandler("start", start))
