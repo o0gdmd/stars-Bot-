@@ -1,4 +1,4 @@
-import logging
+Import logging
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -331,7 +331,6 @@ def main():
         url_path=BOT_TOKEN,
         webhook_url=f"{URL}/{BOT_TOKEN}"
     )
-    logging.info(f"Webhook started at {URL}:{PORT}")
 
 if __name__ == "__main__":
     main()
