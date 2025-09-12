@@ -10,6 +10,7 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ConversationHandler, ContextTypes, filters, PreCheckoutQueryHandler
 )
+from telegram.ext._aiohttp import AiohttpWebhookHandler  # التعديل هنا
 from aiohttp import web   # لإضافة مسار healthcheck
 import asyncio
 
@@ -340,7 +341,8 @@ async def main():
     app.on_startup.append(on_startup)
 
     # ✅ التعديل هنا فقط
-    app.add_subapp(f"/{BOT_TOKEN}", application.webhook_application())
+    handler = AiohttpWebhookHandler(application)
+    app.router.add_post(f"/{BOT_TOKEN}", handler.handle)
 
     runner = web.AppRunner(app)
     await runner.setup()
