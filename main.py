@@ -10,8 +10,7 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ConversationHandler, ContextTypes, filters, PreCheckoutQueryHandler
 )
-from telegram.ext._aiohttp import AiohttpWebhookHandler  # التعديل هنا
-from aiohttp import web   # لإضافة مسار healthcheck
+from aiohttp import web
 import asyncio
 
 # --- Logging ---
@@ -334,24 +333,20 @@ async def main():
     app = web.Application()
     app.router.add_get("/ping", healthcheck)
 
-    # دمج بوتك مع aiohttp
+    # إضافة webhook عبر PTB مباشرة
     async def on_startup(app_):
         await application.bot.set_webhook(f"{URL}/{BOT_TOKEN}")
+        logging.info(f"Webhook set at {URL}/{BOT_TOKEN}")
 
     app.on_startup.append(on_startup)
-
-    # ✅ التعديل هنا فقط
-    handler = AiohttpWebhookHandler(application)
-    app.router.add_post(f"/{BOT_TOKEN}", handler.handle)
+    app.router.add_post(f"/{BOT_TOKEN}", application.bot.update_queue._handler)
 
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
 
-    logging.info(f"Webhook started at {URL}:{PORT}")
-
-    # خلي السيرفر يضل شغال
+    logging.info(f"Bot running at {URL}:{PORT}")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
