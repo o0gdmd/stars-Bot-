@@ -338,7 +338,9 @@ async def main():
         await application.bot.set_webhook(f"{URL}/{BOT_TOKEN}")
 
     app.on_startup.append(on_startup)
-    app.router.add_post(f"/{BOT_TOKEN}", application.webhook_handler())
+
+    # ✅ التعديل هنا فقط
+    app.add_subapp(f"/{BOT_TOKEN}", application.webhook_application())
 
     runner = web.AppRunner(app)
     await runner.setup()
