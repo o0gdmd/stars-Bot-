@@ -146,8 +146,8 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             prices=prices
         )
 
-        # بعد إرسال الفاتورة، عرض الأزرار الأربعة مباشرة بدون أي رسالة إضافية
-        await start(update, context)
+        # بعد إرسال الفاتورة، إبقاء زر Cancel موجود
+        await update.message.reply_text("❌ Cancel", reply_markup=cancel_keyboard())
         return ConversationHandler.END
     except ValueError:
         await update.message.reply_text("Invalid input. Enter a number:",
@@ -233,7 +233,7 @@ async def confirm_withdrawal(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"Your TON will be sent soon."
     )
     # بعد التأكيد، إظهار الأزرار الأربعة
-    await query.message.reply_text(reply_markup=main_menu_keyboard())
+    await query.message.reply_text("Choose an option:", reply_markup=main_menu_keyboard())
 
 # --- Wallet ---
 async def wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
