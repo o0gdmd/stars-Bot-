@@ -10,8 +10,6 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ConversationHandler, ContextTypes, filters, PreCheckoutQueryHandler
 )
-from aiohttp import web
-import asyncio
 
 # --- Logging ---
 logging.basicConfig(
@@ -22,7 +20,7 @@ logging.basicConfig(
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# States
+# --- States ---
 ADD_STARS_STATE, WITHDRAW_AMOUNT_STATE, SET_WALLET_STATE = range(3)
 
 # --- Database functions ---
@@ -91,7 +89,7 @@ def main_menu_keyboard():
 def cancel_keyboard():
     return ReplyKeyboardMarkup([[KeyboardButton("❌ Cancel")]], resize_keyboard=True)
 
-# --- Start Handler ---
+# --- Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     get_user_data(user_id)
@@ -100,11 +98,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_menu_keyboard()
     )
 
-# --- Account ---
 async def account_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_info = get_user_data(user.id)
-    wallet_address = user_info["ton_wallet"] if user_info["ton_wallet"] else "Not set"
+    wallet_address = user_info["ton_wallet"] or "Not set"
     total_deposits = user_info.get("total_deposits", 0)
     vip_level = get_vip_level(total_deposits)
     response_text = (
@@ -118,7 +115,6 @@ async def account_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(response_text)
 
-# --- Add Funds ---
 async def add_fund_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
         "Enter the number of Stars you want to add (min: 100):",
@@ -162,7 +158,6 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         return ADD_STARS_STATE
 
-# --- PreCheckout & Successful Payment ---
 async def precheckout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
     await query.answer(ok=True)
@@ -180,7 +175,6 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
         reply_markup=main_menu_keyboard()
     )
 
-# --- Withdraw ---
 async def withdraw_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
         "Enter the amount of Stars you want to withdraw:",
@@ -198,18 +192,24 @@ async def handle_withdraw_amount(update: Update, context: ContextTypes.DEFAULT_T
     try:
         amount = int(update.message.text)
     except ValueError:
-        await update.message.reply_text("Invalid input. Enter a number:",
-                                        reply_markup=cancel_keyboard())
+        await update.message.reply_text(
+            "Invalid input. Enter a number:",
+            reply_markup=cancel_keyboard()
+        )
         return WITHDRAW_AMOUNT_STATE
 
     if amount <= 0:
-        await update.message.reply_text("Enter a number greater than 0:",
-                                        reply_markup=cancel_keyboard())
+        await update.message.reply_text(
+            "Enter a number greater than 0:",
+            reply_markup=cancel_keyboard()
+        )
         return WITHDRAW_AMOUNT_STATE
 
     if amount > user_info["balance"]:
-        await update.message.reply_text("You don’t have enough balance. Try again:",
-                                        reply_markup=cancel_keyboard())
+        await update.message.reply_text(
+            "You don’t have enough balance. Try again:",
+            reply_markup=cancel_keyboard()
+        )
         return WITHDRAW_AMOUNT_STATE
 
     context.user_data["withdraw_amount"] = amount
@@ -242,10 +242,9 @@ async def confirm_withdrawal(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
     await query.message.reply_text("Choose an option:", reply_markup=main_menu_keyboard())
 
-# --- Wallet ---
 async def wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_info = get_user_data(update.effective_user.id)
-    current_wallet = user_info["ton_wallet"] if user_info["ton_wallet"] else "Not set"
+    current_wallet = user_info["ton_wallet"] or "Not set"
     await update.message.reply_text(
         f"Your current TON wallet: `{current_wallet}`\nSend me your new TON wallet address:",
         parse_mode="Markdown",
@@ -261,8 +260,10 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     user_id = update.message.from_user.id
     new_wallet = update.message.text
     if not (new_wallet.startswith(("EQ", "UQ")) or new_wallet.endswith((".ton",))):
-        await update.message.reply_text("Invalid TON wallet address. Try again:",
-                                        reply_markup=cancel_keyboard())
+        await update.message.reply_text(
+            "Invalid TON wallet address. Try again:",
+            reply_markup=cancel_keyboard()
+        )
         return SET_WALLET_STATE
 
     update_user_data(user_id, ton_wallet=new_wallet)
@@ -273,7 +274,6 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await start(update, context)
     return ConversationHandler.END
 
-# --- Star Transactions fallback ---
 async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if getattr(update, "star_transaction", None):
         star_transaction = update.star_transaction
@@ -289,12 +289,8 @@ async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT
                 text=f"✅ Payment received: {amount} Stars\nYour new balance: {new_balance} Stars"
             )
 
-# --- Healthcheck for Uptime ---
-async def healthcheck(request):
-    return web.Response(text="Bot is alive")
-
 # --- Main ---
-async def main():
+def main():
     init_db()
     application = Application.builder().token(BOT_TOKEN).build()
 
@@ -329,25 +325,13 @@ async def main():
     PORT = int(os.environ.get("PORT", 8080))
     URL = os.environ.get("RENDER_EXTERNAL_URL", "https://your-render-app-name.onrender.com")
 
-    # استخدام aiohttp مباشرة
-    app = web.Application()
-    app.router.add_get("/ping", healthcheck)
-
-    # إضافة webhook عبر PTB مباشرة
-    async def on_startup(app_):
-        await application.bot.set_webhook(f"{URL}/{BOT_TOKEN}")
-        logging.info(f"Webhook set at {URL}/{BOT_TOKEN}")
-
-    app.on_startup.append(on_startup)
-    app.router.add_post(f"/{BOT_TOKEN}", application.bot.update_queue._handler)
-
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    await site.start()
-
-    logging.info(f"Bot running at {URL}:{PORT}")
-    await asyncio.Event().wait()
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=BOT_TOKEN,
+        webhook_url=f"{URL}/{BOT_TOKEN}"
+    )
+    logging.info(f"Webhook started at {URL}:{PORT}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
