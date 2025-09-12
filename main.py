@@ -10,7 +10,8 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ConversationHandler, ContextTypes, filters, PreCheckoutQueryHandler
 )
-from aiohttp import web  # لإضافة مسار healthcheck
+from aiohttp import web   # لإضافة مسار healthcheck
+import asyncio
 
 # --- Logging ---
 logging.basicConfig(
@@ -139,7 +140,6 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             return ADD_STARS_STATE
 
         prices = [LabeledPrice("Stars", stars_amount)]
-        # إرسال الفاتورة فقط، بدون أي رسالة إضافية
         await context.bot.send_invoice(
             chat_id=update.effective_chat.id,
             title="Buy Stars",
@@ -149,14 +149,11 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             currency="XTR",
             prices=prices
         )
-
-        # تفعيل كيبورد Cancel تلقائي
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=" ",  # نص فارغ فقط لإظهار الكيبورد
+            text=" ", 
             reply_markup=cancel_keyboard()
         )
-
         return ADD_STARS_STATE
     except ValueError:
         await update.message.reply_text(
@@ -243,7 +240,6 @@ async def confirm_withdrawal(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"Remaining balance: {new_balance} Stars.\n"
         f"Your TON will be sent soon."
     )
-    # بعد التأكيد، إظهار الأزرار الأربعة
     await query.message.reply_text("Choose an option:", reply_markup=main_menu_keyboard())
 
 # --- Wallet ---
@@ -274,7 +270,6 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         f"✅ Your TON wallet has been updated successfully!\nCurrent wallet: `{new_wallet}`",
         parse_mode="Markdown"
     )
-    # بعد التحديث، إظهار الأزرار الأربعة تلقائيًا
     await start(update, context)
     return ConversationHandler.END
 
@@ -299,7 +294,7 @@ async def healthcheck(request):
     return web.Response(text="Bot is alive")
 
 # --- Main ---
-def main():
+async def main():
     init_db()
     application = Application.builder().token(BOT_TOKEN).build()
 
@@ -334,16 +329,26 @@ def main():
     PORT = int(os.environ.get("PORT", 8080))
     URL = os.environ.get("RENDER_EXTERNAL_URL", "https://your-render-app-name.onrender.com")
 
-    # إضافة healthcheck route
-    application.web_app.router.add_get("/healthcheck", healthcheck)
+    # استخدام aiohttp مباشرة
+    app = web.Application()
+    app.router.add_get("/ping", healthcheck)
 
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=BOT_TOKEN,
-        webhook_url=f"{URL}/{BOT_TOKEN}"
-    )
+    # دمج بوتك مع aiohttp
+    async def on_startup(app_):
+        await application.bot.set_webhook(f"{URL}/{BOT_TOKEN}")
+
+    app.on_startup.append(on_startup)
+    app.router.add_post(f"/{BOT_TOKEN}", application.webhook_handler())
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+
     logging.info(f"Webhook started at {URL}:{PORT}")
 
+    # خلي السيرفر يضل شغال
+    await asyncio.Event().wait()
+
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
