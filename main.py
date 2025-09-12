@@ -146,8 +146,7 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             prices=prices
         )
 
-        # بعد إرسال الفاتورة، إبقاء زر Cancel موجود
-        await update.message.reply_text("❌ Cancel", reply_markup=cancel_keyboard())
+        # بعد إرسال الفاتورة، لا نرسل أي رسالة إضافية ولا زر Cancel
         return ConversationHandler.END
     except ValueError:
         await update.message.reply_text("Invalid input. Enter a number:",
