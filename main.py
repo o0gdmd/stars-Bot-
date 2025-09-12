@@ -128,8 +128,7 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     try:
         stars_amount = int(update.message.text)
         if stars_amount < 100:
-            await update.message.reply_text("Minimum is 100 Stars. Enter a valid number:",
-                                            reply_markup=cancel_keyboard())
+            await update.message.reply_text("", reply_markup=cancel_keyboard())
             return ADD_STARS_STATE
 
         prices = [LabeledPrice("Stars", stars_amount)]
@@ -143,12 +142,11 @@ async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             prices=prices
         )
 
-        # بعد إرسال الفاتورة، إظهار الأزرار الأربعة فقط
-        await update.message.reply_text(" ", reply_markup=main_menu_keyboard())
+        # إظهار الأزرار الأربعة فقط بعد إرسال الفاتورة
+        await start(update, context)
         return ConversationHandler.END
     except ValueError:
-        await update.message.reply_text("Invalid input. Enter a number:",
-                                        reply_markup=cancel_keyboard())
+        await update.message.reply_text("", reply_markup=cancel_keyboard())
         return ADD_STARS_STATE
 
 # --- PreCheckout & Successful Payment ---
@@ -165,7 +163,7 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
     new_total = user_info["total_deposits"] + stars_amount
     update_user_data(user_id, balance=new_balance, total_deposits=new_total)
     # إظهار الأزرار الأربعة فقط بعد الدفع
-    await update.message.reply_text(" ", reply_markup=main_menu_keyboard())
+    await start(update, context)
 
 # --- Withdraw ---
 async def withdraw_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -185,27 +183,17 @@ async def handle_withdraw_amount(update: Update, context: ContextTypes.DEFAULT_T
     try:
         amount = int(update.message.text)
     except ValueError:
-        await update.message.reply_text("Invalid input. Enter a number:",
-                                        reply_markup=cancel_keyboard())
+        await update.message.reply_text("", reply_markup=cancel_keyboard())
         return WITHDRAW_AMOUNT_STATE
 
-    if amount <= 0:
-        await update.message.reply_text("Enter a number greater than 0:",
-                                        reply_markup=cancel_keyboard())
-        return WITHDRAW_AMOUNT_STATE
-
-    if amount > user_info["balance"]:
-        await update.message.reply_text("You don’t have enough balance. Try again:",
-                                        reply_markup=cancel_keyboard())
+    if amount <= 0 or amount > user_info["balance"]:
+        await update.message.reply_text("", reply_markup=cancel_keyboard())
         return WITHDRAW_AMOUNT_STATE
 
     context.user_data["withdraw_amount"] = amount
     keyboard = [[InlineKeyboardButton("✅ Confirm Withdraw", callback_data="confirm_withdraw")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        f"You requested to withdraw {amount} Stars.\nClick confirm to proceed or ❌ Cancel.",
-        reply_markup=reply_markup
-    )
+    await update.message.reply_text("", reply_markup=reply_markup)
     return ConversationHandler.END
 
 async def confirm_withdrawal(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -214,26 +202,16 @@ async def confirm_withdrawal(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id = query.from_user.id
     user_info = get_user_data(user_id)
     amount = context.user_data.get("withdraw_amount")
-    if not amount:
-        await query.edit_message_text("No withdrawal request found.")
-        return
-    if amount > user_info["balance"]:
-        await query.edit_message_text("Insufficient balance.")
-        return
-    new_balance = user_info["balance"] - amount
-    update_user_data(user_id, balance=new_balance)
+    if amount and amount <= user_info["balance"]:
+        new_balance = user_info["balance"] - amount
+        update_user_data(user_id, balance=new_balance)
     # إظهار الأزرار الأربعة فقط بعد التأكيد
-    await query.message.reply_text(" ", reply_markup=main_menu_keyboard())
+    await start(update, context)
 
 # --- Wallet ---
 async def wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_info = get_user_data(update.effective_user.id)
-    current_wallet = user_info["ton_wallet"] if user_info["ton_wallet"] else "Not set"
-    await update.message.reply_text(
-        f"Your current TON wallet: `{current_wallet}`\nSend me your new TON wallet address:",
-        parse_mode="Markdown",
-        reply_markup=cancel_keyboard()
-    )
+    await update.message.reply_text("", reply_markup=cancel_keyboard())
     return SET_WALLET_STATE
 
 async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -243,14 +221,9 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     user_id = update.message.from_user.id
     new_wallet = update.message.text
-    if not (new_wallet.startswith(("EQ", "UQ")) or new_wallet.endswith((".ton",))):
-        await update.message.reply_text("Invalid TON wallet address. Try again:",
-                                        reply_markup=cancel_keyboard())
-        return SET_WALLET_STATE
-
     update_user_data(user_id, ton_wallet=new_wallet)
-    # إظهار الأزرار الأربعة فقط بعد التعيين أو التعديل
-    await update.message.reply_text(" ", reply_markup=main_menu_keyboard())
+    # بعد التحديث، إظهار الأزرار الأربعة
+    await start(update, context)
     return ConversationHandler.END
 
 # --- Star Transactions fallback ---
@@ -264,10 +237,7 @@ async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT
             new_balance = user_info["balance"] + amount
             new_total = user_info["total_deposits"] + amount
             update_user_data(user_id, balance=new_balance, total_deposits=new_total)
-            await context.bot.send_message(
-                chat_id=user_id,
-                text=f"✅ Payment received: {amount} Stars\nYour new balance: {new_balance} Stars"
-            )
+            await context.bot.send_message(chat_id=user_id, text="")
 
 # --- Main ---
 def main():
