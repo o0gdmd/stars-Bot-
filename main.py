@@ -145,8 +145,15 @@ async def add_fund_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return ADD_STARS_STATE
 
 async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text.strip()
+
+    # لو ضغط زر من القائمة → نرجع للقائمة الرئيسية
+    if text in ["➕ Add Funds", "🏧 Withdraw", "👤 Account", "👛 Wallet"]:
+        await start(update, context)
+        return ConversationHandler.END
+
     try:
-        stars_amount = int(update.message.text)
+        stars_amount = int(text)
         if stars_amount < 100:
             await update.message.reply_text("Minimum is 100 Stars. Enter a valid number:")
             return ADD_STARS_STATE
@@ -193,11 +200,17 @@ async def withdraw_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def handle_withdraw_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
     user_info = get_user_data(user_id)
+    text = update.message.text.strip()
+
+    # لو ضغط زر من القائمة → نرجع للقائمة الرئيسية
+    if text in ["➕ Add Funds", "🏧 Withdraw", "👤 Account", "👛 Wallet"]:
+        await start(update, context)
+        return ConversationHandler.END
 
     try:
-        amount = int(update.message.text)
+        amount = int(text)
     except ValueError:
-        await update.message.reply_text("Invalid input. Enter a number:")
+        await update.message.reply_text("Invalid input. Please enter a number:")
         return WITHDRAW_AMOUNT_STATE
 
     if amount <= 0:
@@ -248,7 +261,7 @@ async def wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     user_info = get_user_data(update.effective_user.id)
     current_wallet = user_info["ton_wallet"] if user_info["ton_wallet"] else "Not set"
 
-    # ✅ تحديد إذا المستخدم بيعدل العنوان أو يضيف لأول مرة
+    # تحديد إذا المستخدم بيعدل العنوان أو يضيف لأول مرة
     context.user_data["editing_wallet"] = bool(user_info["ton_wallet"])
 
     await update.message.reply_text(
@@ -259,10 +272,17 @@ async def wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
-    new_wallet = update.message.text.strip()  # إزالة الفراغات الزائدة
+    text = update.message.text.strip()
 
-    # السماح بنفس العنوان الحالي بدون ظهور رسالة خطأ
+    # لو ضغط زر من القائمة → نرجع للقائمة الرئيسية
+    if text in ["➕ Add Funds", "🏧 Withdraw", "👤 Account", "👛 Wallet"]:
+        await start(update, context)
+        return ConversationHandler.END
+
+    new_wallet = text
     current_wallet = get_user_data(user_id)["ton_wallet"]
+
+    # لو ادخل نفس العنوان الحالي نقبل وننهي
     if current_wallet and new_wallet == current_wallet:
         await update.message.reply_text(
             f"✅ Your TON wallet remains the same: `{new_wallet}`",
@@ -270,7 +290,7 @@ async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return ConversationHandler.END
 
-    # التحقق من صحة عنوان TON إذا تم تغييره
+    # التحقق من صحة العنوان الجديد
     if not (new_wallet.startswith(("EQ", "UQ")) or new_wallet.endswith(".ton")):
         await update.message.reply_text("Invalid TON wallet address. Try again:")
         return SET_WALLET_STATE
