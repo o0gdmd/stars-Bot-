@@ -131,6 +131,7 @@ async def add_fund_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return ADD_STARS_STATE
 
 async def get_stars_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    # Global Cancel
     if update.message.text == "❌ Cancel":
         await start(update, context)
         return ConversationHandler.END
@@ -186,6 +187,7 @@ async def withdraw_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return WITHDRAW_AMOUNT_STATE
 
 async def handle_withdraw_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    # Global Cancel
     if update.message.text == "❌ Cancel":
         await start(update, context)
         return ConversationHandler.END
@@ -257,6 +259,7 @@ async def wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return SET_WALLET_STATE
 
 async def set_ton_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    # Global Cancel
     if update.message.text == "❌ Cancel":
         await start(update, context)
         return ConversationHandler.END
@@ -296,6 +299,11 @@ async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT
                 text=f"✅ Payment received: {amount} Stars\nYour new balance: {new_balance} Stars"
             )
 
+# --- Global Cancel Handler ---
+async def global_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.text == "❌ Cancel":
+        await start(update, context)
+
 # --- Main ---
 def main():
     init_db()
@@ -328,6 +336,9 @@ def main():
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
     application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     application.add_handler(MessageHandler(filters.ALL, star_transaction_handler))
+
+    # --- Global Cancel Handler ---
+    application.add_handler(MessageHandler(filters.Regex("^❌ Cancel$"), global_cancel))
 
     PORT = int(os.environ.get("PORT", 8080))
     URL = os.environ.get("RENDER_EXTERNAL_URL", "https://your-render-app-name.onrender.com")
