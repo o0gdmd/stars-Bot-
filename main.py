@@ -10,6 +10,7 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ConversationHandler, ContextTypes, filters, PreCheckoutQueryHandler
 )
+from aiohttp import web  # لإضافة مسار healthcheck
 
 # --- Logging ---
 logging.basicConfig(
@@ -293,6 +294,10 @@ async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT
                 text=f"✅ Payment received: {amount} Stars\nYour new balance: {new_balance} Stars"
             )
 
+# --- Healthcheck for Uptime ---
+async def healthcheck(request):
+    return web.Response(text="Bot is alive")
+
 # --- Main ---
 def main():
     init_db()
@@ -328,6 +333,9 @@ def main():
 
     PORT = int(os.environ.get("PORT", 8080))
     URL = os.environ.get("RENDER_EXTERNAL_URL", "https://your-render-app-name.onrender.com")
+
+    # إضافة healthcheck route
+    application.web_app.router.add_get("/healthcheck", healthcheck)
 
     application.run_webhook(
         listen="0.0.0.0",
