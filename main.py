@@ -11,7 +11,6 @@ from telegram.ext import (
     ConversationHandler, ContextTypes, filters, PreCheckoutQueryHandler
 )
 from aiohttp import web
-import asyncio
 
 # --- Logging ---
 logging.basicConfig(
@@ -328,27 +327,21 @@ async def main():
     application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     application.add_handler(MessageHandler(filters.ALL, star_transaction_handler))
 
-    # --- Start bot and ping server concurrently ---
+    web_app = web.Application()
+    web_app.router.add_get("/ping", ping)
+
     PORT = int(os.environ.get("PORT", 8080))
     URL = os.environ.get("RENDER_EXTERNAL_URL", "https://your-render-app-name.onrender.com")
 
-    # Start ping server
-    app = web.Application()
-    app.router.add_get("/ping", ping)
-    runner = web.AppRunner(app)
+    await application.start()
+    await application.bot.set_webhook(f"{URL}/{BOT_TOKEN}")
+    runner = web.AppRunner(web_app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-
-    # Set webhook
-    await application.bot.set_webhook(f"{URL}/{BOT_TOKEN}")
     logging.info(f"Bot is running with webhook at {URL}/{BOT_TOKEN}")
+    while True:
+        await asyncio.sleep(3600)  # keep running
 
-    # Keep the bot running
-    await application.initialize()
-    await application.start()
-    await application.updater.start_polling()
-    await application.idle()
-
-if __name__ == "__main__":
-    asyncio.run(main())
+import asyncio
+asyncio.run(main())
