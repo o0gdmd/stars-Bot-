@@ -10,7 +10,6 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ConversationHandler, ContextTypes, filters, PreCheckoutQueryHandler
 )
-from aiohttp import web
 
 # --- Logging ---
 logging.basicConfig(
@@ -290,12 +289,8 @@ async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT
                 text=f"✅ Payment received: {amount} Stars\nYour new balance: {new_balance} Stars"
             )
 
-# --- Ping endpoint for Uptime Robot ---
-async def ping(request):
-    return web.Response(text="Bot is alive ✅")
-
 # --- Main ---
-async def main():
+def main():
     init_db()
     application = Application.builder().token(BOT_TOKEN).build()
 
@@ -327,21 +322,16 @@ async def main():
     application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     application.add_handler(MessageHandler(filters.ALL, star_transaction_handler))
 
-    web_app = web.Application()
-    web_app.router.add_get("/ping", ping)
-
     PORT = int(os.environ.get("PORT", 8080))
     URL = os.environ.get("RENDER_EXTERNAL_URL", "https://your-render-app-name.onrender.com")
 
-    await application.start()
-    await application.bot.set_webhook(f"{URL}/{BOT_TOKEN}")
-    runner = web.AppRunner(web_app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    await site.start()
-    logging.info(f"Bot is running with webhook at {URL}/{BOT_TOKEN}")
-    while True:
-        await asyncio.sleep(3600)  # keep running
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=BOT_TOKEN,
+        webhook_url=f"{URL}/{BOT_TOKEN}"
+    )
+    logging.info(f"Webhook started at {URL}:{PORT}")
 
-import asyncio
-asyncio.run(main())
+if __name__ == "__main__":
+    main()
