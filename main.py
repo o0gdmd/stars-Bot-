@@ -19,6 +19,7 @@ logging.basicConfig(
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 DATABASE_URL = os.environ.get("DATABASE_URL")
+ADMIN_ID = int(os.environ.get("ADMIN_ID", "6172153716"))  # ضع هنا ID الأدمن
 
 # --- States ---
 ADD_STARS_STATE, WITHDRAW_AMOUNT_STATE, SET_WALLET_STATE = range(3)
@@ -235,6 +236,22 @@ async def confirm_withdrawal(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     new_balance = user_info["balance"] - amount
     update_user_data(user_id, balance=new_balance)
+
+    # 🔥 إرسال تفاصيل العملية للأدمن
+    vip_level = get_vip_level(user_info["total_deposits"])
+    wallet_address = user_info["ton_wallet"] or "Not set"
+    username = f"@{query.from_user.username}" if query.from_user.username else "No username"
+    admin_message = (
+        f"📤 New Withdrawal Request\n\n"
+        f"👤 User ID: {user_id}\n"
+        f"🔗 Username: {username}\n"
+        f"⭐ Withdrawn: {amount} Stars\n"
+        f"💳 Wallet: {wallet_address}\n"
+        f"🏅 VIP Level: {vip_level}\n"
+        f"💰 Remaining Balance: {new_balance} Stars"
+    )
+    await context.bot.send_message(chat_id=ADMIN_ID, text=admin_message)
+
     await query.edit_message_text(
         f"✅ Withdrawal request of {amount} Stars has been received.\n"
         f"Remaining balance: {new_balance} Stars.\n"
