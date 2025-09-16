@@ -40,13 +40,10 @@ def init_db():
         )
     """)
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS stats (
-            key TEXT PRIMARY KEY,
-            value BIGINT DEFAULT 0
+        CREATE TABLE IF NOT EXISTS start_users (
+            user_id BIGINT PRIMARY KEY
         )
     """)
-    # تأكد من وجود سجل start_count
-    cursor.execute("INSERT INTO stats (key, value) VALUES ('start_count', 0) ON CONFLICT (key) DO NOTHING")
     conn.commit()
     cursor.close()
     conn.close()
@@ -103,10 +100,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     get_user_data(user_id)
 
-    # زيادة عداد start
+    # إضافة المستخدم إلى جدول start_users إذا لم يكن موجود
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE stats SET value = value + 1 WHERE key = 'start_count'")
+    cursor.execute("INSERT INTO start_users (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user_id,))
     conn.commit()
     cursor.close()
     conn.close()
@@ -119,11 +116,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT value FROM stats WHERE key = 'start_count'")
-    count = cursor.fetchone()["value"]
+    cursor.execute("SELECT COUNT(*) AS count FROM start_users")
+    count = cursor.fetchone()["count"]
     cursor.close()
     conn.close()
-    await update.message.reply_text(f"📈 Number of users who pressed /start: {count}")
+    await update.message.reply_text(f"📈 Number of unique users who pressed /start: {count}")
 
 async def account_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
