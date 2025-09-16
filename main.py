@@ -39,6 +39,14 @@ def init_db():
             total_deposits BIGINT DEFAULT 0
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stats (
+            key TEXT PRIMARY KEY,
+            value BIGINT DEFAULT 0
+        )
+    """)
+    # تأكد من وجود سجل start_count
+    cursor.execute("INSERT INTO stats (key, value) VALUES ('start_count', 0) ON CONFLICT (key) DO NOTHING")
     conn.commit()
     cursor.close()
     conn.close()
@@ -94,10 +102,28 @@ def cancel_keyboard():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     get_user_data(user_id)
+
+    # زيادة عداد start
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE stats SET value = value + 1 WHERE key = 'start_count'")
+    conn.commit()
+    cursor.close()
+    conn.close()
+
     await update.message.reply_text(
         "Please choose an option from below:", 
         reply_markup=main_menu_keyboard()
     )
+
+async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT value FROM stats WHERE key = 'start_count'")
+    count = cursor.fetchone()["value"]
+    cursor.close()
+    conn.close()
+    await update.message.reply_text(f"📈 Number of users who pressed /start: {count}")
 
 async def account_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -330,6 +356,7 @@ def main():
     )
 
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("status", status_handler))
     application.add_handler(MessageHandler(filters.Regex("^👤 Account$"), account_handler))
     application.add_handler(add_fund_conv)
     application.add_handler(withdraw_conv)
