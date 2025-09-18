@@ -332,7 +332,6 @@ async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT
 # --- Main ---
 def main():
     init_db()
-    global application  # ← هذا التعديل الوحيد الذي أضفناه
     application = Application.builder().token(BOT_TOKEN).build()
 
     add_fund_conv = ConversationHandler(
