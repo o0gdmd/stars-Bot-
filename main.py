@@ -458,11 +458,20 @@ def setup_bot():
     return application
 
 # This block is the entry point for running the bot
+import asyncio
+
+# ... (باقي الكود كما هو) ...
+
+# This block is the entry point for running the bot
 if __name__ == "__main__":
     setup_bot()
     PORT = int(os.environ.get("PORT", 8080))
     URL = os.environ.get("RENDER_EXTERNAL_URL")
+
+    # Use asyncio.run to await the set_webhook coroutine
     if URL:
-        application.bot.set_webhook(f"{URL}/{BOT_TOKEN}")
+        asyncio.run(application.bot.set_webhook(f"{URL}/{BOT_TOKEN}"))
+
     logging.info("Starting up Flask server...")
     app.run(host='0.0.0.0', port=PORT)
+
