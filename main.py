@@ -4,6 +4,8 @@ import psycopg2
 import json
 import hashlib
 import hmac
+import asyncio  # Import the asyncio library
+
 from psycopg2.extras import RealDictCursor
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup,
@@ -422,7 +424,7 @@ def telegram_webhook():
 application = None
 
 # This function sets up the bot's handlers and returns the application instance
-def setup_bot():
+async def setup_bot():
     global application
     init_db()
     application = Application.builder().token(BOT_TOKEN).build()
@@ -455,23 +457,21 @@ def setup_bot():
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
     application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     application.add_handler(MessageHandler(filters.ALL, star_transaction_handler))
+    
+    # Set the webhook inside the async function
+    PORT = int(os.environ.get("PORT", 8080))
+    URL = os.environ.get("RENDER_EXTERNAL_URL")
+    if URL:
+        await application.bot.set_webhook(f"{URL}/{BOT_TOKEN}")
+    
     return application
 
 # This block is the entry point for running the bot
-import asyncio
-
-# ... (باقي الكود كما هو) ...
-
-# This block is the entry point for running the bot
 if __name__ == "__main__":
-    setup_bot()
-    PORT = int(os.environ.get("PORT", 8080))
-    URL = os.environ.get("RENDER_EXTERNAL_URL")
-
-    # Use asyncio.run to await the set_webhook coroutine
-    if URL:
-        asyncio.run(application.bot.set_webhook(f"{URL}/{BOT_TOKEN}"))
-
-    logging.info("Starting up Flask server...")
-    app.run(host='0.0.0.0', port=PORT)
-
+    async def run_server():
+        await setup_bot()
+        PORT = int(os.environ.get("PORT", 8080))
+        logging.info("Starting up Flask server...")
+        app.run(host='0.0.0.0', port=PORT)
+        
+    asyncio.run(run_server())
