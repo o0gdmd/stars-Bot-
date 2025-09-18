@@ -4,7 +4,6 @@ import psycopg2
 import json
 import hashlib
 import hmac
-import asyncio
 from psycopg2.extras import RealDictCursor
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup,
@@ -100,6 +99,7 @@ def main_menu_keyboard_with_miniapp():
         [KeyboardButton("➕ Add Funds"), KeyboardButton("🏧 Withdraw")],
         [
             KeyboardButton("👤 Account"),
+            KeyboardButton("👛 Wallet"),
             KeyboardButton("Launch Mini App 🚀", web_app={"url": f"{RENDER_URL}/miniapp/index.html"})
         ]
     ], resize_keyboard=True)
@@ -396,7 +396,7 @@ def request_withdraw():
             f"💳 Wallet: {wallet_address}\n"
             f"💰 Remaining Balance: {new_balance} Stars"
         )
-        asyncio.run(application.bot.send_message(chat_id=ADMIN_ID, text=admin_message))
+        application.bot.send_message(chat_id=ADMIN_ID, text=admin_message)
         return jsonify({
             "status": "success",
             "message": f"Withdrawal request of {amount} Stars has been received.",
@@ -411,18 +411,17 @@ def request_withdraw():
 def serve_miniapp(filename):
     return send_from_directory('mini_app', filename)
 
-# The Telegram bot's webhook handler
+# The Telegram bot's webhook handler is now a route in our Flask app
 @app.route(f'/{BOT_TOKEN}', methods=['POST'])
 def telegram_webhook():
-    data = request.get_json()
-    update = Update.de_json(data, application.bot)
-    asyncio.run(application.process_update(update))
+    update = Update.de_json(request.get_json(), application.bot)
+    application.process_update(update)
     return 'ok'
 
 # Global application variable
 application = None
 
-# Setup bot function
+# This function sets up the bot's handlers and returns the application instance
 def setup_bot():
     global application
     init_db()
@@ -452,13 +451,18 @@ def setup_bot():
     application.add_handler(add_fund_conv)
     application.add_handler(withdraw_conv)
     application.add_handler(wallet_conv)
-    application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
+    application.add_handler(CallbackQueryHandler(confirm_withdrawal, pattern="^confirm_withdraw$"))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
-    application.add_handler(CallbackQueryHandler(confirm_withdrawal, pattern="confirm_withdraw"))
+    application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
+    application.add_handler(MessageHandler(filters.ALL, star_transaction_handler))
+    return application
 
-# --- Run Setup ---
-setup_bot()
-
-# Flask run
+# This block is the entry point for running the bot
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    setup_bot()
+    PORT = int(os.environ.get("PORT", 8080))
+    URL = os.environ.get("RENDER_EXTERNAL_URL")
+    if URL:
+        application.bot.set_webhook(f"{URL}/{BOT_TOKEN}")
+    logging.info("Starting up Flask server...")
+    app.run(host='0.0.0.0', port=PORT)
