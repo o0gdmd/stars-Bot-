@@ -2,3 +2,4 @@ python-telegram-bot[webhooks]>=21.0
 pytonlib
 aiogram==3.*
 psycopg2-binary
+Flask
