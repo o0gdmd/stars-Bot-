@@ -1,21 +1,15 @@
 import asyncio
 from aiohttp import web
 import threading
-import main  # نستورد ملفك كامل بدون ما نفترض اسم المتغير
+import main  # استورد ملفك كامل بدون ما تحدد متغير
 
-# ---- شغل البوت في Thread لحاله ----
+# ---- شغل البوت في Thread مستقل ----
 def run_bot():
-    if hasattr(main, "application"):
-        # إذا عندك متغير اسمو application
-        asyncio.run(main.application.run_polling())
-    elif hasattr(main, "Application"):
-        # إذا عندك Application (من النوع الكلاسيكي)
-        asyncio.run(main.Application.run_polling())
-    elif hasattr(main, "main"):
-        # إذا عندك دالة اسمها main() تشغل البوت
+    # إذا عندك دالة main() هي اللي بتشغّل البوت
+    if hasattr(main, "main"):
         asyncio.run(main.main())
     else:
-        raise RuntimeError("⚠️ ما لقيت لا application ولا Application ولا main() بملف main.py")
+        raise RuntimeError("⚠️ لازم يكون عندك دالة اسمها main() بملف main.py")
 
 bot_thread = threading.Thread(target=run_bot, daemon=True)
 bot_thread.start()
