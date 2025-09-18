@@ -1,11 +1,11 @@
 import asyncio
 from aiohttp import web
 import threading
-import main  # ← هذا ملف البوت تبعك (main.py)
+from main import application  # ← جاي من main.py مباشرة
 
 # ---- شغل البوت في Thread لحاله ----
 def run_bot():
-    asyncio.run(main.main())  # يستدعي دالة main() الموجودة عندك
+    asyncio.run(application.run_polling())  # شغل البوت من غير ما نحتاج main()
 
 bot_thread = threading.Thread(target=run_bot, daemon=True)
 bot_thread.start()
@@ -18,4 +18,5 @@ app = web.Application()
 app.router.add_get("/", handle)
 
 if __name__ == "__main__":
-    web.run_app(app, host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 10000))  # Render يحط البورت بالمتغير PORT
+    web.run_app(app, host="0.0.0.0", port=port)
