@@ -88,8 +88,8 @@ def get_vip_level(total_deposits):
 # --- Keyboards ---
 def main_menu_keyboard():
     return ReplyKeyboardMarkup([
-        [KeyboardButton("➕ Add Funds"), KeyboardButton("🏧 Withdraw")],
-        [KeyboardButton("👤 Account"), KeyboardButton("👛 Wallet")]
+        [KeyboardButton("🌟 Add Funds"), KeyboardButton("🏧 Withdraw")],
+        [KeyboardButton("👤 Account"), KeyboardButton("💼 Wallet")]
     ], resize_keyboard=True)
 
 def cancel_keyboard():
@@ -335,7 +335,7 @@ def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
     add_fund_conv = ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex("^➕ Add Funds$"), add_fund_start)],
+        entry_points=[MessageHandler(filters.Regex("^🌟 Add Funds$"), add_fund_start)],
         states={ADD_STARS_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_stars_amount)]},
         fallbacks=[MessageHandler(filters.Regex("^❌ Cancel$"), start)],
     )
@@ -347,7 +347,7 @@ def main():
     )
 
     wallet_conv = ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex("^👛 Wallet$"), wallet_start)],
+        entry_points=[MessageHandler(filters.Regex("^💼 Wallet$"), wallet_start)],
         states={SET_WALLET_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_ton_wallet)]},
         fallbacks=[MessageHandler(filters.Regex("^❌ Cancel$"), start)],
     )
