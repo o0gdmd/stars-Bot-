@@ -11,6 +11,10 @@ from telegram.ext import (
     ConversationHandler, ContextTypes, filters, PreCheckoutQueryHandler
 )
 
+# --- new imports for the web server ---
+import asyncio
+from aiohttp import web
+
 # --- Logging ---
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -329,11 +333,12 @@ async def star_transaction_handler(update: Update, context: ContextTypes.DEFAULT
                 text=f"✅ Payment received: {amount} Stars\nYour new balance: {new_balance} Stars"
             )
 
-# --- Main ---
-def main():
+# --- Main (Modified part) ---
+async def main():
     init_db()
     application = Application.builder().token(BOT_TOKEN).build()
 
+    # Add all your handlers like before
     add_fund_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^🌟 Add Funds$"), add_fund_start)],
         states={ADD_STARS_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_stars_amount)]},
@@ -362,16 +367,60 @@ def main():
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
     application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     application.add_handler(MessageHandler(filters.ALL, star_transaction_handler))
-
+    
+    # --- Web server setup ---
     PORT = int(os.environ.get("PORT", 8080))
-    URL = os.environ.get("RENDER_EXTERNAL_URL", "https://your-render-app-name.onrender.com")
+    URL = os.environ.get("RENDER_EXTERNAL_URL")
+    
+    # Initialize the PTB application
+    await application.initialize()
+    
+    # Set the webhook
+    if URL:
+        await application.bot.set_webhook(url=f"{URL}/{BOT_TOKEN}")
+    else:
+        logging.warning("RENDER_EXTERNAL_URL is not set. Webhook will not be set.")
 
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=BOT_TOKEN,
-        webhook_url=f"{URL}/{BOT_TOKEN}"
-    )
+    # This is the handler for Telegram's updates
+    async def telegram_webhook(request: web.Request) -> web.Response:
+        try:
+            data = await request.json()
+            update = Update.de_json(data, application.bot)
+            await application.process_update(update)
+            return web.Response(text="OK", status=200)
+        except Exception as e:
+            logging.error(f"Error processing update: {e}")
+            return web.Response(text="Internal Server Error", status=500)
+
+    # This is the health check handler for Uptime Robot
+    async def health_check(request: web.Request) -> web.Response:
+        return web.Response(text="OK - I am alive!", status=200)
+    
+    # Create the web application
+    webapp = web.Application()
+    
+    # Add routes
+    webapp.router.add_post(f"/{BOT_TOKEN}", telegram_webhook) # For Telegram
+    webapp.router.add_get("/", health_check) # For Uptime Robot
+    
+    # Create and run the web server
+    runner = web.AppRunner(webapp)
+    await runner.setup()
+    site = web.TCPSite(runner, host="0.0.0.0", port=PORT)
+    await site.start()
+    logging.info(f"Server started on port {PORT}")
+    
+    # Keep the application running
+    await asyncio.Event().wait()
+    
+    # Clean up on shutdown
+    await runner.cleanup()
+    await application.shutdown()
+
 
 if __name__ == "__main__":
-    main()
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logging.info("Bot stopped.")
+
