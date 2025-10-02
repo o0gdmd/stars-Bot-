@@ -3,3 +3,4 @@ pytonlib
 aiogram==3.*
 psycopg2-binary
 Flask
+aiohttp
